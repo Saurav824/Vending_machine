@@ -1,0 +1,75 @@
+install.packages(dplyr)
+install.packages(shiny)
+install.packages(tibble)
+
+# Load necessary packages
+library(dplyr)
+library(shiny)
+library(tibble)  # Load the tibble package
+
+# Define the inventory of the vending machine
+vending_machine <- tibble(
+  code = c("A1", "A2", "A3", "A4"),
+  item = c("Chips", "Soda", "Candy", "Water"),
+  price = c(1.50, 1.00, 0.75, 1.25),
+  stock = c(10, 10, 10, 10)
+)
+
+# Define the UI for the Shiny app
+ui <- fluidPage(
+  titlePanel("Vending Machine"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("item_code", "Select Item:", choices = vending_machine$code),
+      numericInput("money_inserted", "Insert Money ($):", value = 0, min = 0, step = 0.25),
+      actionButton("purchase", "Purchase"),
+      textOutput("message")
+    ),
+    mainPanel(
+      tableOutput("inventory")
+    )
+  )
+)
+
+# Define the server logic for the Shiny app
+server <- function(input, output, session) {
+  
+  # Reactive expression to manage inventory
+  inventory <- reactiveVal(vending_machine)
+  
+  # Display the inventory
+  output$inventory <- renderTable({
+    inventory()
+  })
+  
+  observeEvent(input$purchase, {
+    current_inventory <- inventory()
+    selected_item <- current_inventory %>% filter(code == input$item_code)
+    
+    if (nrow(selected_item) == 0) {
+      output$message <- renderText("Invalid item selected.")
+      return()
+    }
+    
+    if (selected_item$stock <= 0) {
+      output$message <- renderText(paste(selected_item$item, "is out of stock. Please choose another item."))
+      return()
+    }
+    
+    if (input$money_inserted < selected_item$price) {
+      output$message <- renderText("Insufficient funds. Please insert more money.")
+      return()
+    }
+    
+    # Update stock
+    current_inventory$stock[current_inventory$code == input$item_code] <- current_inventory$stock[current_inventory$code == input$item_code] - 1
+    inventory(current_inventory)
+    
+    change <- input$money_inserted - selected_item$price
+    output$message <- renderText(paste("Dispensing", selected_item$item, ". Change returned: $", round(change, 2), sep = ""))
+  })
+}
+
+# Run the Shiny app
+shinyApp(ui = ui, server = server)
+
